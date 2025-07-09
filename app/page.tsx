@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Task = {
   id: number;
@@ -72,6 +73,7 @@ export default function Home() {
       const contract = await getEthereumContract();
       const tx = await contract.createTask(optimisticTask.content);
       await tx.wait();
+      toast.success('Task added successfully');
       loadTasks();
     } catch (err) {
       console.error('Error adding task', err);
@@ -96,6 +98,7 @@ export default function Home() {
       const contract = await getEthereumContract();
       const tx = await contract.completeTask(taskId);
       await tx.wait();
+      toast.success('Task completed successfully');
       loadTasks();
     } catch (err) {
       console.error('Error completing task', err);
@@ -114,6 +117,7 @@ export default function Home() {
       const contract = await getEthereumContract();
       const tx = await contract.deleteTask(taskId);
       await tx.wait();
+      toast.success('Task deleted successfully');
       loadTasks();
     } catch (err) {
       console.error('Error deleting task', err);
@@ -142,6 +146,7 @@ export default function Home() {
       const contract = await getEthereumContract();
       const tx = await contract.updateTask(taskId, editedContent);
       await tx.wait();
+      toast.success('Task updated successfully');
       loadTasks();
     } catch (err) {
       console.error('Error updating task', err);
