@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2 } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export default function Home() {
 
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState('');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
 
   const loadTasks = async () => {
     if (!window.ethereum) return;
@@ -54,14 +56,26 @@ export default function Home() {
   const addTask = async () => {
     if (!newTask) return;
     setLoading(true);
+
+    const optimisticTask: Task = {
+      id: tasks.length,
+      content: newTask,
+      completed: false,
+      createdAt: `${Date.now() / 1000}`,
+      updatedAt: `${Date.now() / 1000}`,
+    };
+
+    setTasks(prev => [...prev, optimisticTask]);
+    setNewTask('');
+
     try {
       const contract = await getEthereumContract();
-      const tx = await contract.createTask(newTask);
+      const tx = await contract.createTask(optimisticTask.content);
       await tx.wait();
-      setNewTask('');
       loadTasks();
     } catch (err) {
       console.error('Error adding task', err);
+      loadTasks();
     } finally {
       setLoading(false);
     }
@@ -69,6 +83,15 @@ export default function Home() {
 
   const completeTask = async (taskId: number) => {
     setLoading(true);
+
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? { ...t, completed: true, updatedAt: `${Date.now() / 1000}` }
+          : t,
+      ),
+    );
+
     try {
       const contract = await getEthereumContract();
       const tx = await contract.completeTask(taskId);
@@ -76,6 +99,7 @@ export default function Home() {
       loadTasks();
     } catch (err) {
       console.error('Error completing task', err);
+      loadTasks();
     } finally {
       setLoading(false);
     }
@@ -83,6 +107,9 @@ export default function Home() {
 
   const deleteTask = async (taskId: number) => {
     setLoading(true);
+
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+
     try {
       const contract = await getEthereumContract();
       const tx = await contract.deleteTask(taskId);
@@ -90,6 +117,7 @@ export default function Home() {
       loadTasks();
     } catch (err) {
       console.error('Error deleting task', err);
+      loadTasks();
     } finally {
       setLoading(false);
     }
@@ -98,15 +126,26 @@ export default function Home() {
   const updateTask = async (taskId: number) => {
     if (!editedContent) return;
     setLoading(true);
+
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? { ...t, content: editedContent, updatedAt: `${Date.now() / 1000}` }
+          : t,
+      ),
+    );
+
+    setEditingTaskId(null);
+    setEditedContent('');
+
     try {
       const contract = await getEthereumContract();
       const tx = await contract.updateTask(taskId, editedContent);
       await tx.wait();
-      setEditingTaskId(null);
-      setEditedContent('');
       loadTasks();
     } catch (err) {
       console.error('Error updating task', err);
+      loadTasks();
     } finally {
       setLoading(false);
     }
@@ -115,6 +154,12 @@ export default function Home() {
   useEffect(() => {
     loadTasks();
   }, []);
+
+  const filteredTasks = tasks.filter(t => {
+    if (filter === 'pending') return !t.completed;
+    if (filter === 'completed') return t.completed;
+    return true;
+  });
 
   return (
     <main className='p-6 max-w-xl mx-auto space-y-6'>
@@ -134,17 +179,30 @@ export default function Home() {
         </Button>
       </div>
 
+      <Tabs
+        defaultValue='all'
+        value={filter}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onValueChange={v => setFilter(v as any)}
+      >
+        <TabsList className='w-full grid grid-cols-3 mt-4'>
+          <TabsTrigger value='all'>📋 All</TabsTrigger>
+          <TabsTrigger value='pending'>🟢 Pending</TabsTrigger>
+          <TabsTrigger value='completed'>✅ Completed</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {fetching ? (
         <div className='space-y-2'>
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className='h-16 w-full rounded-xl' />
           ))}
         </div>
-      ) : tasks.length === 0 ? (
-        <p className='text-muted-foreground'>No tasks yet</p>
+      ) : filteredTasks.length === 0 ? (
+        <p className='text-muted-foreground'>No tasks found</p>
       ) : (
         <div className='space-y-4'>
-          {tasks.map(task => (
+          {filteredTasks.map(task => (
             <Card key={task.id}>
               <CardContent className='flex justify-between items-center py-4'>
                 <div className='flex-1'>
